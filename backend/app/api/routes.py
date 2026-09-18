@@ -5,9 +5,12 @@ Handlers are thin: parse, call the service, serialise. Nothing else lives here.
 from __future__ import annotations
 
 import base64
+import json
 import uuid
+from collections.abc import AsyncIterator
 
 from fastapi import APIRouter, File, Form, HTTPException, Request, Response, UploadFile
+from fastapi.responses import StreamingResponse
 
 from ..core.models import TalkResult
 from ..core.pipeline import ConversationService
@@ -53,6 +56,13 @@ async def stt(request: Request, audio: UploadFile = File(...)) -> TranscriptOut:
     return TranscriptOut(**t.__dict__)
 
 
+@router.get("/thinking/{index}")
+async def thinking(request: Request, index: int) -> Response:
+    """Filler audio for the wait before the first sentence, in the same voice as the reply."""
+    clip = await _svc(request).thinking_clip(index)
+    return Response(content=clip.data, media_type=clip.mime, headers={"Cache-Control": "public, max-age=3600"})
+
+
 @router.post("/chat", response_model=ChatOut)
 async def chat(request: Request, body: ChatIn) -> ChatOut:
     reply = await _svc(request).reply(body.session_id, body.text, body.age_group)
@@ -63,6 +73,35 @@ async def chat(request: Request, body: ChatIn) -> ChatOut:
 async def tts(request: Request, body: TTSIn) -> Response:
     clip = await _svc(request).speak(body.text)
     return Response(content=clip.data, media_type=clip.mime)
+
+
+@router.post("/talk/stream")
+async def talk_stream(
+    request: Request,
+    audio: UploadFile = File(...),
+    session_id: str = Form(""),
+    age_group: AgeGroup = Form("3-6"),
+    want_audio: bool = Form(True),
+) -> StreamingResponse:
+    """NDJSON: one line per event, so the browser can play sentence 1 while the LLM writes sentence 2."""
+    data, mime = await _read_upload(request, audio)
+    sid = session_id or uuid.uuid4().hex
+
+    async def lines() -> AsyncIterator[bytes]:
+        async for ev in _svc(request).talk_stream(sid, data, mime, age_group, want_audio):
+            out: dict = {"type": ev.kind, "session_id": sid}
+            if ev.transcript is not None:
+                out["transcript"] = ev.transcript.__dict__
+            if ev.kind == "chunk":
+                out["text"] = ev.text
+                if ev.audio:
+                    out["audio"] = {"mime": ev.audio.mime, "base64": base64.b64encode(ev.audio.data).decode()}
+            if ev.kind == "done":
+                out["reply"] = {"text": ev.text, "blocked": ev.blocked}
+                out["timings_ms"] = ev.timings_ms
+            yield json.dumps(out, ensure_ascii=False).encode() + b"\n"
+
+    return StreamingResponse(lines(), media_type="application/x-ndjson", headers={"X-Accel-Buffering": "no"})
 
 
 @router.post("/talk", response_model=TalkOut)

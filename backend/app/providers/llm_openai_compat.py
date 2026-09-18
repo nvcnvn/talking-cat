@@ -1,7 +1,9 @@
 """OpenAI-compatible chat completions client (works with GLM's /chat/completions)."""
 from __future__ import annotations
 
+import json
 import logging
+from collections.abc import AsyncIterator
 
 import httpx
 
@@ -17,16 +19,19 @@ class OpenAICompatLLM:
         self._headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
         self._client = client or httpx.AsyncClient(timeout=timeout_s)
 
-    async def complete(self, messages: list[Message], *, temperature: float, max_tokens: int) -> str:
-        payload = {
+    def _payload(self, messages: list[Message], temperature: float, max_tokens: int, *, stream: bool) -> dict:
+        return {
             "model": self._model,
             "messages": [{"role": m.role, "content": m.content} for m in messages],
             "temperature": temperature,
             "max_tokens": max_tokens,
-            "stream": False,
+            "stream": stream,
+            # GLM "thinking" models may return reasoning by default; ask them not to for latency.
+            "thinking": {"type": "disabled"},
         }
-        # GLM "thinking" models may return reasoning by default; ask them not to for latency.
-        payload["thinking"] = {"type": "disabled"}
+
+    async def complete(self, messages: list[Message], *, temperature: float, max_tokens: int) -> str:
+        payload = self._payload(messages, temperature, max_tokens, stream=False)
         resp = await self._client.post(self._url, json=payload, headers=self._headers)
         if resp.status_code >= 400:
             log.error("llm http %s: %s", resp.status_code, resp.text[:500])
@@ -35,6 +40,31 @@ class OpenAICompatLLM:
         choice = data["choices"][0]["message"]
         content = choice.get("content") or ""
         return content.strip()
+
+    async def stream(self, messages: list[Message], *, temperature: float, max_tokens: int) -> AsyncIterator[str]:
+        """Yield content deltas as they arrive, so the first sentence can be spoken
+        while the rest is still being written."""
+        payload = self._payload(messages, temperature, max_tokens, stream=True)
+        async with self._client.stream("POST", self._url, json=payload, headers=self._headers) as resp:
+            if resp.status_code >= 400:
+                body = (await resp.aread())[:500]
+                log.error("llm http %s: %s", resp.status_code, body)
+                resp.raise_for_status()
+            async for line in resp.aiter_lines():
+                if not line.startswith("data:"):
+                    continue
+                data = line[5:].strip()
+                if data == "[DONE]":
+                    return
+                try:
+                    choices = json.loads(data).get("choices") or []
+                except ValueError:
+                    continue
+                if not choices:
+                    continue
+                delta = (choices[0].get("delta") or {}).get("content") or ""
+                if delta:
+                    yield delta
 
     async def aclose(self) -> None:
         await self._client.aclose()

@@ -1,4 +1,4 @@
-import { blobToText, type ApiClient, type ChatResult, type TalkOptions, type TalkResult } from "./client";
+import { blobToText, type ApiClient, type ChatResult, type TalkOptions, type TurnEvent } from "./client";
 
 /** In-browser fake backend. Enables UI work and e2e tests with no server at all. */
 export class MockApiClient implements ApiClient {
@@ -16,7 +16,7 @@ export class MockApiClient implements ApiClient {
     return { text: `Meo meo! Bạn vừa nói: ${text}. Bạn có muốn chơi đố vui không?`, blocked: false, category: "ok", llm_used: true };
   }
 
-  async talk(audio: Blob, opts: TalkOptions): Promise<TalkResult> {
+  async talkStream(audio: Blob, opts: TalkOptions, onEvent: (e: TurnEvent) => void): Promise<void> {
     await this.wait();
     let heard = "xin chào Miu";
     if (audio.type.startsWith("text/")) {
@@ -25,13 +25,18 @@ export class MockApiClient implements ApiClient {
       if (m) heard = m[1].trim();
     }
     const reply = this.replyFor(heard);
-    return {
-      session_id: opts.sessionId,
-      transcript: { text: heard, language: "vi", confidence: 1 },
-      reply,
-      audio: opts.wantAudio ? { mime: "audio/wav", base64: silentWavBase64(Math.min(4, 0.04 * reply.text.length)) } : null,
-      timings_ms: { stt: 1, llm: 1, tts: 1, total: 3 },
-    };
+    onEvent({ type: "transcript", transcript: { text: heard, language: "vi", confidence: 1 } });
+    // Sentence by sentence, with a pause between them, like the real streamed turn.
+    const parts = reply.text.split(/(?<=[.!?])\s+/).filter(Boolean);
+    for (const text of parts) {
+      await this.wait();
+      onEvent({
+        type: "chunk",
+        text,
+        audio: opts.wantAudio ? { mime: "audio/wav", base64: silentWavBase64(Math.min(3, 0.04 * text.length)) } : null,
+      });
+    }
+    onEvent({ type: "done", reply: { text: reply.text, blocked: reply.blocked }, timings_ms: { stt: 1, first_audio: 2, total: 3 } });
   }
 
   async chat(text: string, opts: TalkOptions): Promise<ChatResult> {
@@ -42,6 +47,10 @@ export class MockApiClient implements ApiClient {
   async tts(): Promise<Blob> {
     await this.wait();
     return new Blob([Uint8Array.from(atob(silentWavBase64(1)), (c) => c.charCodeAt(0))], { type: "audio/wav" });
+  }
+
+  async thinking(): Promise<Blob> {
+    return new Blob([Uint8Array.from(atob(silentWavBase64(1.2)), (c) => c.charCodeAt(0))], { type: "audio/wav" });
   }
 
   async clearSession(): Promise<void> {}

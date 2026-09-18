@@ -48,3 +48,24 @@ test("reset gives a fresh session", () => {
 test("RESULT outside thinking is ignored", () => {
   expect(reduce(s0(), { type: "RESULT", heard: "a", reply: "b", blocked: false }).reply).toBe("");
 });
+
+test("streamed turn: the cat speaks sentence 1 while the rest is still arriving", () => {
+  let s = reduce(reduce(s0(), { type: "LISTEN_START" }), { type: "LISTEN_STOP" });
+  s = reduce(s, { type: "HEARD", text: "con voi kêu thế nào" });
+  expect(s).toMatchObject({ phase: "thinking", heard: "con voi kêu thế nào", reply: "" });
+
+  s = reduce(s, { type: "REPLY_CHUNK", text: "Meo meo!" });
+  expect(s).toMatchObject({ phase: "speaking", reply: "Meo meo!" });
+  s = reduce(s, { type: "REPLY_CHUNK", text: "Voi kêu ừm ừm." });
+  expect(s.reply).toBe("Meo meo! Voi kêu ừm ừm.");
+
+  s = reduce(s, { type: "RESULT", heard: "con voi kêu thế nào", reply: "Meo meo! Voi kêu ừm ừm.", blocked: false });
+  expect(s.turns).toBe(1);
+  s = reduce(s, { type: "SPEAK_END" });
+  expect(s.phase).toBe("idle");
+});
+
+test("a stray chunk after the turn ended changes nothing", () => {
+  const idle = s0();
+  expect(reduce(idle, { type: "REPLY_CHUNK", text: "muộn quá" })).toEqual(idle);
+});

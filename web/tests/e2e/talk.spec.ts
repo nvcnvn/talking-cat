@@ -63,8 +63,29 @@ test("real audio clip through the real pipeline", async ({ page }) => {
   await page.goto("/?test=1"); // audio ON: exercises HtmlAudioPlayer too
   await page.getByTestId("file-input").setInputFiles(fixture("elephant.mp3"));
   const cat = page.getByTestId("cat");
+  // The transcript appears as soon as Whisper is done; the reply follows sentence by sentence,
+  // so it is legitimately empty for a few seconds after "heard" is on screen.
   await expect(page.getByTestId("heard")).toContainText("voi", { timeout: 60_000 });
-  await expect(page.getByTestId("reply")).not.toBeEmpty();
+  // The idle bubble reuses this testid for its greeting, so "not empty" would pass without a reply.
+  await expect(page.getByTestId("reply")).not.toHaveClass(/bubble--hint/, { timeout: 60_000 });
   await expect(cat).toHaveAttribute("data-phase", "speaking", { timeout: 30_000 });
   await expect(cat).toHaveAttribute("data-phase", "idle", { timeout: 30_000 });
+});
+
+// Real providers only (make mac-backend / make up, then E2E_REAL=1): the filler audio is
+// synthesised by the backend in the cat's own voice, so there is nothing to see in mock mode.
+test("the cat mutters 'let me think' until the real answer starts", async ({ page }) => {
+  test.skip(process.env.E2E_REAL !== "1", "needs the real stack");
+  test.setTimeout(90_000);
+  const fillers: number[] = [];
+  const t0 = Date.now();
+  page.on("request", (r) => r.url().includes("/api/thinking/") && fillers.push(Date.now() - t0));
+
+  await page.goto("/?test=1"); // audio ON: the filler only exists when the cat can be heard
+  await page.getByTestId("file-input").setInputFiles(fixture("elephant.mp3"));
+  await expect(page.getByTestId("reply")).not.toHaveClass(/bubble--hint/, { timeout: 60_000 });
+  expect(fillers.length).toBeGreaterThan(0); // something covered the wait
+
+  await expect(page.getByTestId("cat")).toHaveAttribute("data-phase", "idle", { timeout: 60_000 });
+  expect(fillers.length).toBeLessThanOrEqual(3); // and it stopped once the cat was answering
 });

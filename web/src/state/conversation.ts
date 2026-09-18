@@ -15,6 +15,8 @@ export type ConversationEvent =
   | { type: "LISTEN_START" }
   | { type: "LISTEN_STOP" }
   | { type: "TEXT_SUBMIT"; text: string }
+  | { type: "HEARD"; text: string }
+  | { type: "REPLY_CHUNK"; text: string }
   | { type: "RESULT"; heard: string; reply: string; blocked: boolean }
   | { type: "SPEAK_START" }
   | { type: "SPEAK_END" }
@@ -38,8 +40,15 @@ export function reduce(s: ConversationState, e: ConversationEvent): Conversation
       return s.phase === "listening" ? { ...s, phase: "thinking" } : s;
     case "TEXT_SUBMIT":
       return s.phase === "idle" || s.phase === "error" ? { ...s, phase: "thinking", heard: e.text, error: null } : s;
+    case "HEARD":
+      return s.phase === "thinking" ? { ...s, heard: e.text, reply: "" } : s;
+    case "REPLY_CHUNK":
+      // The cat starts talking on the first sentence, while the rest is still being written.
+      return s.phase === "thinking" || s.phase === "speaking"
+        ? { ...s, phase: "speaking", reply: s.reply ? `${s.reply} ${e.text}` : e.text }
+        : s;
     case "RESULT":
-      return s.phase === "thinking"
+      return s.phase === "thinking" || s.phase === "speaking"
         ? { ...s, heard: e.heard, reply: e.reply, blocked: e.blocked, turns: s.turns + 1 }
         : s;
     case "SPEAK_START":

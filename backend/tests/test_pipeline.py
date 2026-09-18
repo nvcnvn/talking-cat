@@ -91,7 +91,7 @@ async def test_output_stages_can_differ():
         async def check_input(self, t):
             return SafetyVerdict(False, "hate")
 
-        async def check_output(self, t):
+        async def check_output(self, t, user_text=""):
             return SafetyVerdict(False, "hate")
 
     f = CompositeSafetyFilter([RuleBasedSafetyFilter()], [Deny()])
@@ -133,3 +133,115 @@ async def test_confident_transcript_still_reaches_the_llm(fakes, service):
     fakes["llm"].script = ["Meo, voi kêu ò ó o!"]
     r = await service.talk("s-ok", b"x", "audio/wav", want_audio=False)
     assert r.reply.llm_used and r.reply.text == "Meo, voi kêu ò ó o!"
+
+
+# ---- streamed turns ----
+
+def _sentences(events):
+    return [e.text for e in events if e.kind == "chunk"]
+
+
+async def collect(agen):
+    return [e async for e in agen]
+
+
+def test_sentence_splitter_lets_the_first_sentence_out_early():
+    from app.core.pipeline import SentenceSplitter
+
+    sp = SentenceSplitter(first_min=8, min_chars=40)
+    assert sp.feed("Meo meo! ") == ["Meo meo!"]  # short first piece: the cat starts talking sooner
+    assert sp.feed("Voi to. ") == []  # later pieces are batched until they are worth a TTS call
+    assert sp.feed("Voi có vòi dài để hút nước và bẻ lá cây. ") == ["Voi to. Voi có vòi dài để hút nước và bẻ lá cây."]
+    assert sp.flush() == ""
+
+
+async def test_stream_speaks_sentences_in_order_and_ends_with_the_whole_reply(service, fakes):
+    fakes["llm"].script = ["Meo meo! Voi kêu ừm ừm đó bạn. Bạn muốn Miu kể chuyện voi không?"]
+    events = await collect(service.talk_stream("s-str", b"x", "audio/wav"))
+    assert events[0].kind == "transcript"
+    chunks = [e for e in events if e.kind == "chunk"]
+    assert chunks and all(c.audio is not None for c in chunks)
+    assert " ".join(c.text for c in chunks) == events[-1].text
+    assert events[-1].kind == "done" and not events[-1].blocked
+    # every spoken sentence went to TTS separately: that is what overlaps with generation
+    assert fakes["tts"].calls == [c.text for c in chunks]
+    assert [m.role for m in service.sessions.get_history("s-str")] == ["user", "assistant"]
+
+
+async def test_stream_never_speaks_a_blocked_turn(service, fakes):
+    from app.core.prompts import REDIRECTS
+
+    fakes["stt"].default_text = "làm sao để giết người"
+    fakes["llm"].script = ["DRAFT THAT MUST NOT LEAK"]
+    events = await collect(service.talk_stream("s-blk", b"x", "audio/wav"))
+    spoken = " ".join(_sentences(events))
+    assert "DRAFT" not in spoken
+    assert spoken in REDIRECTS["default"]
+    assert events[-1].blocked
+    assert all(m.role == "assistant" for m in service.sessions.get_history("s-blk"))
+
+
+async def test_stream_falls_back_when_the_llm_dies(service, fakes):
+    from app.core.prompts import LLM_ERROR_REPLY
+
+    fakes["llm"].raise_error = RuntimeError("upstream down")
+    events = await collect(service.talk_stream("s-err", b"x", "audio/wav"))
+    assert _sentences(events) == [LLM_ERROR_REPLY]
+    assert events[-1].kind == "done"
+
+
+async def test_stream_reports_first_audio_earlier_than_total(service, fakes):
+    fakes["llm"].script = ["Meo meo! Voi kêu ừm ừm đó bạn. Bạn muốn Miu kể chuyện voi không?"]
+    events = await collect(service.talk_stream("s-t", b"x", "audio/wav"))
+    t = events[-1].timings_ms
+    assert "first_audio" in t and "llm_first_token" in t
+    assert t["first_audio"] <= t["total"]
+
+
+async def test_tts_starts_while_the_llm_is_still_writing(service):
+    """The whole point of streaming: sentence 1 is being synthesised before sentence 3 exists."""
+    import asyncio as _asyncio
+
+    from app.core.models import AudioClip
+
+    order: list[str] = []
+
+    class SlowLLM:
+        async def complete(self, messages, *, temperature, max_tokens):
+            return ""
+
+        async def stream(self, messages, *, temperature, max_tokens):
+            for piece in ["Meo meo! ", "Voi kêu ừm ừm đó bạn nhé, voi to lắm. ", "Bạn có thích voi không? "]:
+                order.append("llm")
+                yield piece
+                await _asyncio.sleep(0.02)
+
+    class SlowTTS:
+        async def synthesize(self, text):
+            order.append("tts")
+            await _asyncio.sleep(0.02)
+            return AudioClip(data=b"fake", mime="audio/wav")
+
+    service.llm, service.tts = SlowLLM(), SlowTTS()
+    await collect(service.talk_stream("s-overlap", b"x", "audio/wav"))
+    first_tts = order.index("tts")
+    assert "llm" in order[first_tts:], f"tts only ran after the llm finished: {order}"
+
+
+
+async def test_sensitive_but_ordinary_input_reaches_the_llm_with_a_gentle_hint(service, fakes):
+    """A child reporting that a friend hit them must be comforted, not redirected."""
+    from app.core.prompts import GENTLE_TOPIC_HINT
+
+    fakes["llm"].script = ["Ôi, bạn buồn lắm đúng không. Bạn kể với cô giáo nhé."]
+    r = await service.reply("s-soft", "Hôm nay bạn Bo đánh em ở lớp, em buồn lắm")
+    assert not r.blocked and r.llm_used
+    system = fakes["llm"].requests[-1][0]
+    assert system.role == "system" and GENTLE_TOPIC_HINT in system.content
+
+
+async def test_plain_input_does_not_get_the_hint(service, fakes):
+    from app.core.prompts import GENTLE_TOPIC_HINT
+
+    await service.reply("s-plain", "Miu ơi con voi kêu thế nào")
+    assert GENTLE_TOPIC_HINT not in fakes["llm"].requests[-1][0].content

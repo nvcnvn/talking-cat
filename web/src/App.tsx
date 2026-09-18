@@ -9,7 +9,7 @@ import { useConversation } from "./state/useConversation";
 
 export function App({ runtime }: { runtime: Runtime }) {
   const { config } = runtime;
-  const convo = useConversation({ api: runtime.api, makeSource: runtime.makeSource, player: runtime.player, playAudio: config.playAudio, endpointer: config.endpointer });
+  const convo = useConversation({ api: runtime.api, makeSource: runtime.makeSource, player: runtime.player, playAudio: config.playAudio, endpointer: config.endpointer, autoListen: config.handsFree });
   const { state } = convo;
   const [gate, setGate] = useState(false);
   const [typing, setTyping] = useState(false);

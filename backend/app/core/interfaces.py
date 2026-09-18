@@ -1,6 +1,7 @@
 """Provider contracts. Each has a real and a fake implementation in app/providers."""
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
 from typing import Protocol, runtime_checkable
 
 from .models import AudioClip, Message, SafetyVerdict, Transcript
@@ -14,6 +15,7 @@ class STTProvider(Protocol):
 @runtime_checkable
 class LLMProvider(Protocol):
     async def complete(self, messages: list[Message], *, temperature: float, max_tokens: int) -> str: ...
+    def stream(self, messages: list[Message], *, temperature: float, max_tokens: int) -> AsyncIterator[str]: ...
 
 
 @runtime_checkable
@@ -24,7 +26,7 @@ class TTSProvider(Protocol):
 @runtime_checkable
 class SafetyFilter(Protocol):
     async def check_input(self, text: str) -> SafetyVerdict: ...
-    async def check_output(self, text: str) -> SafetyVerdict: ...
+    async def check_output(self, text: str, user_text: str = "") -> SafetyVerdict: ...
 
 
 @runtime_checkable

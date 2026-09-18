@@ -43,6 +43,18 @@ class ChatReply:
     llm_used: bool = True
 
 
+@dataclass(frozen=True)
+class TurnEvent:
+    """One piece of a streamed turn: the transcript, a spoken sentence, or the end of the turn."""
+
+    kind: Literal["transcript", "chunk", "done"]
+    transcript: Transcript | None = None
+    text: str = ""  # sentence for "chunk", whole reply for "done"
+    audio: AudioClip | None = None
+    blocked: bool = False
+    timings_ms: dict[str, int] = field(default_factory=dict)
+
+
 @dataclass
 class TalkResult:
     transcript: Transcript

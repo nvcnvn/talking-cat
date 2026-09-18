@@ -30,12 +30,14 @@ class Settings(BaseSettings):
     mlx_whisper_model: str = "mlx-community/whisper-small-mlx"  # or mlx-community/whisper-large-v3-turbo
 
     # --- Text to speech ---
-    tts_provider: Literal["edge", "piper", "fake"] = "edge"
-    tts_fallback: Literal["piper", "fake", "none"] = "piper"  # used when the primary errors or misses the deadline
+    tts_provider: Literal["edge", "piper", "apple", "fake"] = "edge"  # apple = macOS `say`, on-device
+    tts_fallback: Literal["piper", "apple", "fake", "none"] = "piper"  # used when the primary errors or misses the deadline
     tts_deadline_s: float = 2.5
     tts_voice: str = "vi-VN-HoaiMyNeural"
     tts_rate: str = "-5%"
     piper_voice: str = "vi_VN-vais1000-medium"
+    apple_voice: str = "Linh"  # macOS only: `say -v '?'` lists what is installed
+    apple_rate_wpm: int = 180
     piper_data_dir: str = "/opt/piper"
 
     # --- Safety ---

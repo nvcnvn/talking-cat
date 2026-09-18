@@ -54,6 +54,12 @@ class FakeLLM:
             return "ok"
         return f"Meo meo! Bạn vừa nói: {last_user}. Bạn có muốn chơi đố vui không?"
 
+    async def stream(self, messages: list[Message], *, temperature: float, max_tokens: int):
+        """Same words as `complete`, handed over in small pieces like a real stream."""
+        text = await self.complete(messages, temperature=temperature, max_tokens=max_tokens)
+        for i in range(0, len(text), 7):
+            yield text[i : i + 7]
+
 
 @dataclass
 class FakeTTS:

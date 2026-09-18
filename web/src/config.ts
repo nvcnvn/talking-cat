@@ -12,6 +12,8 @@ export interface RuntimeConfig {
   testMode: boolean;
   /** Silence-detection overrides: ?vadThreshold=0.2&vadSilence=1800 to tune a noisy room. */
   endpointer: Partial<EndpointerOptions>;
+  /** Re-open the mic after each reply; ?hands=off for tap-per-turn. */
+  handsFree: boolean;
 }
 
 function num(raw: string | null, key: keyof EndpointerOptions, into: Partial<EndpointerOptions>): Partial<EndpointerOptions> {
@@ -29,5 +31,6 @@ export function readConfig(search: string = window.location.search): RuntimeConf
     apiBase: q.get("apiBase") || "",
     testMode,
     endpointer: num(q.get("vadThreshold"), "threshold", num(q.get("vadSilence"), "silenceMs", {})),
+    handsFree: q.get("hands") !== "off",
   };
 }

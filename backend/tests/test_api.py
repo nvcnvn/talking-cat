@@ -60,3 +60,32 @@ def test_build_tts_wiring():
     assert isinstance(build_tts(Settings(tts_provider="fake", tts_fallback="fake", _env_file=None)), FakeTTS)
     t = build_tts(Settings(tts_provider="edge", tts_fallback="fake", tts_deadline_s=2.5, _env_file=None))
     assert isinstance(t, FallbackTTS) and isinstance(t.fallback, FakeTTS) and t.deadline_s == 2.5
+
+
+async def test_talk_stream_endpoint_emits_ndjson_events(client, wav_bytes):
+    import json
+
+    async with client.stream(
+        "POST", "/api/talk/stream", files={"audio": ("clip.wav", wav_bytes, "audio/wav")}, data={"session_id": "s-ndjson"}
+    ) as resp:
+        assert resp.status_code == 200
+        assert resp.headers["content-type"].startswith("application/x-ndjson")
+        events = [json.loads(line) async for line in resp.aiter_lines() if line.strip()]
+
+    kinds = [e["type"] for e in events]
+    assert kinds[0] == "transcript" and kinds[-1] == "done"
+    assert "chunk" in kinds
+    spoken = [e for e in events if e["type"] == "chunk"]
+    assert all(e["audio"]["base64"] for e in spoken)
+    assert " ".join(e["text"] for e in spoken) == events[-1]["reply"]["text"]
+    assert events[-1]["timings_ms"]["total"] >= 0
+
+
+async def test_thinking_filler_is_served_in_the_cat_voice_and_cached(client, service, fakes):
+    first = await client.get("/api/thinking/0")
+    assert first.status_code == 200 and first.content
+    assert first.headers["content-type"].startswith("audio/")
+    calls = len(fakes["tts"].calls)
+    again = await client.get("/api/thinking/0")
+    assert again.content == first.content
+    assert len(fakes["tts"].calls) == calls, "the filler must not be re-synthesised on every turn"

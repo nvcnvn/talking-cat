@@ -32,3 +32,20 @@ async def test_fallback_on_error():
     fb = FakeTTS()
     t = FallbackTTS(SlowTTS(0.0, fail=True), fb, deadline_s=1)
     assert (await t.synthesize("x")).mime == "audio/wav"
+
+
+async def test_apple_say_renders_a_wav():
+    """macOS only: the on-device voice must come back as a playable WAV."""
+    import shutil
+    import sys
+
+    import pytest
+
+    if sys.platform != "darwin" or not shutil.which("say"):
+        pytest.skip("macOS `say` not available")
+
+    from app.providers.tts_apple import AppleSayTTS
+
+    clip = await AppleSayTTS().synthesize("Meo meo, chào bạn nhé.")
+    assert clip.mime == "audio/wav"
+    assert clip.data[:4] == b"RIFF" and len(clip.data) > 1000

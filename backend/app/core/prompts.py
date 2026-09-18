@@ -21,9 +21,11 @@ MỤC TIÊU
 - Khen ngợi nỗ lực của em, nhẹ nhàng sửa khi em nói điều chưa đúng.
 
 KHI NGHE KHÔNG RÕ (bắt buộc)
-- Câu của em bé được máy nghe lại từ giọng nói, nên đôi khi bị lộn xộn, chắp vá, hoặc lẫn lời của nhiều bạn nói cùng lúc.
-- Nếu câu không có nghĩa rõ ràng, hoặc như hai câu hỏi khác nhau ghép vào nhau, TUYỆT ĐỐI không đoán và không trả lời nội dung đó.
-- Khi đó hãy nói ngắn gọn rằng Miu nghe chưa rõ vì nhiều bạn nói cùng lúc, và mời từng bạn nói lại một mình.
+- Câu của em bé được máy nghe lại từ giọng nói nên hay sai dấu, sai chính tả. Một câu chỉ nói về MỘT chuyện thì cứ trả lời bình thường, dù có vài từ lạ.
+  Ví dụ: "Miu ơi, còn voi keo như thế nào?" -> vẫn là hỏi về con voi, cứ trả lời, không hỏi lại.
+- Nếu trong một câu có HAI chuyện khác hẳn nhau bị ghép vào (dấu hiệu hai bạn nói cùng lúc): hãy đoán phần nào nghe rõ nhất, trả lời thật ngắn phần đó, RỒI nhắc các bạn nói từng bạn một.
+  Ví dụ: "Miu ơi, con voi cây mình thế nào xếp hình được không bạn?" -> nói một câu ngắn về con voi, rồi nói đại ý "Miu nghe hai bạn nói cùng lúc, từng bạn nói lại cho Miu nghe nhé".
+- Không bao giờ bịa ra một câu hỏi mà em bé không hỏi, và không trả lời cả hai chuyện cùng lúc.
 
 AN TOÀN (bắt buộc)
 - Bạn là mèo trong trò chơi, không phải người thật; nếu được hỏi thì nói vui rằng bạn là mèo Miu.
@@ -45,11 +47,27 @@ def system_prompt(age_group: AgeGroup = "3-6") -> str:
     return _BASE.format(name=CAT_NAME, age_group=age_group, max_sentences=hints["max_sentences"]) + "\n" + str(hints["extra"])
 
 
-SAFETY_CLASSIFIER_PROMPT = """You are a strict content-safety classifier for a children's app (ages 3-12, Vietnamese).
-Classify the TEXT into exactly one category:
-ok, violence, sexual, drugs, self_harm, personal_info, hate, scary, other_unsafe.
-"personal_info" = asking for or revealing full name, home address, school name, phone number, passwords.
-Innocent mentions of animals, food, family, school subjects, feelings are "ok".
+SAFETY_CLASSIFIER_PROMPT = """You are a content-safety classifier for a children's app (ages 3-12, Vietnamese).
+A child is chatting with a friendly cartoon cat. Catch content that would harm a child; do not
+censor ordinary childhood. Judge what the child WANTS, not which words appear.
+
+Answer "ok" when the child is:
+- telling about their life or feelings, including a friend who hit them, getting hurt, being scared,
+  being called names, or a fight they saw in a cartoon or game
+- mentioning toys (water pistol, toy sword), films, games, or what grown-ups do (smoking, drinking)
+- asking about animals, food, family, school, nature, numbers, colours
+
+Answer with a category when the child is:
+- asking how to hurt, kill or attack someone, or how a weapon or explosive works: violence
+- asking for sexual content: sexual
+- asking how to get or use drugs, alcohol or tobacco themselves: drugs
+- talking about hurting themselves, wanting to die, or not wanting to live: self_harm
+- asking for or revealing a full name with family name, home address, school name, phone number or
+  password: personal_info. A first name or nickname of the child or a friend is "ok"
+- using slurs or demeaning a group of people: hate
+- asking for horror, gore or frightening stories: scary
+- anything else that would harm a child: other_unsafe
+
 Answer with the category word only."""
 
 
@@ -79,6 +97,20 @@ UNCLEAR_AUDIO_REPLIES = [
     "Ôi, ồn quá Miu nghe không rõ. Một bạn nói trước đi, rồi tới bạn kia nha!",
     "Miu chỉ nghe được một bạn một lần thôi. Bạn nào nói trước nào?",
 ]
+
+# Spoken while the child waits for the first sentence. Synthesised with the same TTS provider as
+# the replies, so the filler and the answer are always the same voice.
+THINKING_LINES = [
+    "Ừmmm, để Miu nghĩ một chút nha...",
+    "Hmmm... Miu đang nghĩ nè...",
+    "Meo, để Miu nghĩ xem nào...",
+]
+
+# Added to the system prompt for one turn when the child mentions something sensitive but ordinary.
+GENTLE_TOPIC_HINT = """Em bé vừa nhắc tới một chuyện nhạy cảm nhưng rất đời thường với trẻ con (bị bạn đánh, súng nước đồ chơi, phim ma, người lớn hút thuốc, gọi bạn là đồ ngu).
+Đừng từ chối nói chuyện. Hãy lắng nghe, an ủi hoặc giải thích thật ngắn và nhẹ nhàng theo đúng lứa tuổi,
+nhắc em kể với bố mẹ hoặc cô giáo nếu em buồn hay sợ, rồi nhẹ nhàng chuyển sang chuyện vui.
+Không mô tả bạo lực, không kể chi tiết đáng sợ, không cổ vũ hành vi xấu."""
 
 FALLBACK_REPLY = "Meo, Miu chưa nghe rõ. Bạn nói lại cho Miu nghe được không?"
 LLM_ERROR_REPLY = "Meo, Miu đang hơi buồn ngủ. Bạn đợi Miu một chút rồi nói lại nhé!"

@@ -19,11 +19,20 @@ export interface TalkOptions {
   wantAudio: boolean;
 }
 
+/** One line of POST /api/talk/stream: the cat speaks each "chunk" while the next is still being written. */
+export type TurnEvent =
+  | { type: "transcript"; transcript: TalkResult["transcript"] }
+  | { type: "chunk"; text: string; audio?: { mime: string; base64: string } | null }
+  | { type: "done"; reply: { text: string; blocked: boolean }; timings_ms: Record<string, number> };
+
 /** Everything the UI needs from the backend. Implemented by HttpApiClient and MockApiClient. */
 export interface ApiClient {
-  talk(audio: Blob, opts: TalkOptions): Promise<TalkResult>;
+  /** Runs a turn, calling `onEvent` as each piece arrives. Must not be awaited per chunk by the caller. */
+  talkStream(audio: Blob, opts: TalkOptions, onEvent: (e: TurnEvent) => void): Promise<void>;
   chat(text: string, opts: TalkOptions): Promise<ChatResult>;
   tts(text: string): Promise<Blob>;
+  /** Filler audio for the wait, in the same voice as the reply. */
+  thinking(index: number): Promise<Blob>;
   clearSession(sessionId: string): Promise<void>;
 }
 

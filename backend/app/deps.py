@@ -37,6 +37,10 @@ def build_llm(s: Settings):
 def _tts_by_name(name: str, s: Settings):
     if name == "fake":
         return FakeTTS()
+    if name == "apple":
+        from .providers.tts_apple import AppleSayTTS
+
+        return AppleSayTTS(s.apple_voice, s.apple_rate_wpm)
     if name == "piper":
         from .providers.tts_piper import PiperTTS
 

@@ -25,7 +25,7 @@ test("the child stops talking and the turn submits itself", async ({ page }) => 
 
   // No second click anywhere in this test.
   await expect(cat).toHaveAttribute("data-phase", /thinking|speaking/, { timeout: 8_000 });
-  await expect(page.getByTestId("reply")).not.toBeEmpty();
+  await expect(page.getByTestId("reply")).not.toHaveClass(/bubble--hint/, { timeout: 15_000 });
 });
 
 test("silence alone never reaches the backend", async ({ page }) => {
@@ -43,4 +43,37 @@ test("silence alone never reaches the backend", async ({ page }) => {
   await expect(page.getByTestId("reply")).toContainText("chưa nghe rõ", { timeout: 12_000 });
   expect(Date.now() - t0).toBeGreaterThan(5_000); // it waited, rather than failing fast
   expect(posts).toHaveLength(0);
+});
+
+test("hands-free: the mic reopens after the cat answers, with no second tap", async ({ page }) => {
+  test.setTimeout(60_000);
+  const cat = page.getByTestId("cat");
+  await page.goto("/?api=mock&audio=off");
+
+  await page.getByTestId("talk-button").click(); // the only tap in this test
+  await expect(cat).toHaveAttribute("data-phase", /thinking|speaking/, { timeout: 10_000 });
+  await expect(cat).toHaveAttribute("data-phase", "listening", { timeout: 20_000 });
+});
+
+test("hands-free stops after two turns with nothing said, instead of listening forever", async ({ page }) => {
+  test.setTimeout(90_000);
+  const cat = page.getByTestId("cat");
+  // Unreachable threshold: the child is present but never speaks (Chromium replays the fake
+  // capture file on every getUserMedia, so silence has to come from the threshold instead).
+  await page.goto("/?api=mock&audio=off&vadThreshold=2");
+
+  await page.getByTestId("talk-button").click();
+  await expect(page.getByTestId("reply")).toContainText("chưa nghe rõ", { timeout: 20_000 });
+
+  // Idle between turns is transient, so require it to still be idle a few seconds later.
+  await expect
+    .poll(
+      async () => {
+        const before = await cat.getAttribute("data-phase");
+        await page.waitForTimeout(3_000);
+        return before === "idle" && (await cat.getAttribute("data-phase")) === "idle";
+      },
+      { timeout: 60_000, intervals: [1_000] },
+    )
+    .toBe(true);
 });
