@@ -100,8 +100,8 @@ make up-fake && make e2e   # Playwright: file-driven turns through the real HTTP
 |---|---|---|
 | Whisper `small`, CPU int8 | 1.5–2.5 s | `WHISPER_INITIAL_PROMPT` biases it toward "Miu" |
 | GLM 5.2 | 5–6 s | `thinking: disabled` is sent; input safety classifier runs concurrently, not serially |
-| edge-tts | ~1 s when healthy | upstream randomly fails or stalls 10 s+; serial retries, late hedge, then Piper takes over at the deadline |
-| Piper (`vi_VN-vais1000-medium`) | 0.2–0.7 s | self-hosted fallback when edge-tts misses `TTS_DEADLINE_S` (default 2.5 s); plainer voice |
+| edge-tts | ~0.5 s repeated, 1.5–5.6 s novel | see the caching note below: novel text is slow and fails ~1 in 3 with "No audio was received" |
+| Piper (`vi_VN-vais1000-medium`) | 0.2–0.7 s | self-hosted fallback when edge-tts misses `TTS_DEADLINE_S` (default 8 s); plainer voice |
 | Apple `say` (`Linh`, macOS) | ~0.5 s | `TTS_PROVIDER=apple`; on-device, no network, no model download; needs the vi_VN voice installed (`say -v '?'`) |
 
 Set `TTS_PROVIDER=piper` to go fully self-hosted, or `TTS_FALLBACK=none` to insist on the Edge voice.
@@ -141,16 +141,36 @@ Measured on the same clip (MLX Whisper + GLM 5.2), time until the child *hears* 
 | **streamed, `TTS_PROVIDER=piper`** | **3.6–6.9 s** | **3.9–7.0 s** |
 
 While the child waits for that first sentence, the cat mutters a short "ừmmm, để Miu nghĩ..."
-(`GET /api/thinking/{i}`, up to three in a row, stopped the moment the real answer starts). The
+(`GET /api/thinking/{i}`, up to three in a row, stopped the moment the real answer starts). There are a
+dozen of these lines in `THINKING_LINES` and the client picks at random; the backend wraps any index it
+is given, so adding lines needs no frontend change. The
 backend synthesises those lines with the *same* TTS provider as the reply and caches them, because a
-filler in a different voice sounds like a different cat. Note this only guarantees one voice if one
-engine renders everything: with `TTS_PROVIDER=edge` and a fallback, a short filler can make the
-deadline while the longer reply does not, and the child hears two voices in one turn. Measured on
-one sentence: Apple `say` 0.49 s, Piper 0.62 s, edge-tts 6.73 s (a bad draw; ~1 s when healthy).
+filler in a different voice sounds like a different cat.
 
-Streaming only pays off if a sentence can be synthesised quickly: with edge-tts as primary, every
-sentence waits out `TTS_DEADLINE_S` before Piper takes over, so splitting the reply multiplies that
-wait. Use Piper (or a short deadline) with streaming.
+**The fillers sounded right and the replies did not, and the reason is not the deadline.** Microsoft's
+endpoint behaves as if it caches per text. Measured directly, same voice, same session:
+
+| text | first render | repeat render | failures |
+|---|---|---|---|
+| the 12 fixed `THINKING_LINES` | 1.5–2.3 s | ~0.5 s | none observed |
+| a freshly generated reply sentence | 1.5–5.6 s | ~0.5 s | ~1 in 3, `NoAudioReceived` |
+
+So the fillers — a dozen fixed strings synthesised over and over — are permanently warm and always
+arrive in Edge's voice, while every reply sentence is novel text that fails often enough to be handed
+to Piper mid-reply. Raising `TTS_DEADLINE_S` cannot fix this: `NoAudioReceived` is a hard error that
+comes back in ~2.5 s, not a stall. The deadline only governs genuine stalls, and 2.5 s was cutting off
+novel renders that would have succeeded, so it is now 6 s.
+
+The fix is to stop mixing engines. `TTS_PROVIDER=apple` with `TTS_FALLBACK=none` renders every
+utterance — filler and reply alike — with macOS `say` in ~0.45 s, on-device, with nothing to fail and
+no second voice to fall back to. That is the default in this repo's `.env` for the Mac setup. Since
+there is then no fallback to catch an error, `talk_stream()` guards each synthesis: a failed sentence
+arrives silent with its text on screen instead of killing the turn (`tests/test_tts_guard.py`).
+
+Streaming only pays off if a sentence can be synthesised quickly: with edge-tts as primary, a stalled
+sentence waits out `TTS_DEADLINE_S` before Piper takes over, and splitting the reply multiplies that
+wait. That is the price of the long deadline above — paid in latency, which the fillers hide, rather
+than in a change of voice, which they do not. `TTS_PROVIDER=piper` trades the nicer voice for speed.
 
 Every turn logs its own breakdown, so a slow turn can be attributed without guessing:
 
@@ -168,8 +188,18 @@ persona is not the lever — overlapping TTS with generation, or a faster endpoi
 The child taps once. `web/src/audio/endpointer.ts` watches the mic level and ends the turn by itself
 after `silenceMs` of quiet (default 1.2 s), once at least `minSpeechMs` of speech has been heard;
 if nothing is ever said it gives up after `noSpeechMs` and the cat answers without any backend call.
-The 15 s hard cap stays as the backstop. Tune per room without rebuilding:
-`?vadThreshold=0.2&vadSilence=1800` (level is 0..1, clamped at 1).
+A child describing something at length is never cut off mid-sentence: only a pause ends the turn, and
+`maxMs` (45 s) is a ceiling for a child who never pauses at all.
+
+Speech also has to beat the room, not just a fixed number. The endpointer learns the ambient level over
+the first 300 ms (the mic has just opened; the child is still drawing breath), then tracks it downward
+instantly and upward over ~3 s, and counts a level as speech only above `max(threshold, floor × noiseRatio)`.
+Without this a fan or a TV sat permanently above the fixed threshold, so the quiet never arrived, the
+hard cap fired, and 15 s of room noise went to Whisper — which duly invented a sentence out of it.
+The floor is capped internally so it can never climb high enough to gate out a real speaking voice.
+
+Tune per room without rebuilding: `?vadThreshold=0.2&vadSilence=1800&vadNoise=3&vadMax=60000`
+(level is 0..1, clamped at 1).
 
 After the cat finishes, the mic reopens by itself, so a three-year-old taps once per conversation
 rather than once per turn. Two turns in a row with nothing said end the loop (the child has walked

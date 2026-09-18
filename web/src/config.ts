@@ -10,7 +10,8 @@ export interface RuntimeConfig {
   playAudio: boolean;
   apiBase: string;
   testMode: boolean;
-  /** Silence-detection overrides: ?vadThreshold=0.2&vadSilence=1800 to tune a noisy room. */
+  /** Silence-detection overrides: ?vadThreshold=0.2&vadNoise=3 for a noisy room,
+   * ?vadMax=60000 for a child who describes things at length. */
   endpointer: Partial<EndpointerOptions>;
   /** Re-open the mic after each reply; ?hands=off for tap-per-turn. */
   handsFree: boolean;
@@ -30,7 +31,11 @@ export function readConfig(search: string = window.location.search): RuntimeConf
     playAudio: q.get("audio") !== "off",
     apiBase: q.get("apiBase") || "",
     testMode,
-    endpointer: num(q.get("vadThreshold"), "threshold", num(q.get("vadSilence"), "silenceMs", {})),
+    endpointer: num(
+      q.get("vadThreshold"),
+      "threshold",
+      num(q.get("vadSilence"), "silenceMs", num(q.get("vadNoise"), "noiseRatio", num(q.get("vadMax"), "maxMs", {}))),
+    ),
     handsFree: q.get("hands") !== "off",
   };
 }

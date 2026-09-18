@@ -104,6 +104,15 @@ THINKING_LINES = [
     "Ừmmm, để Miu nghĩ một chút nha...",
     "Hmmm... Miu đang nghĩ nè...",
     "Meo, để Miu nghĩ xem nào...",
+    "Ồ, câu này hay nè, Miu nghĩ xíu...",
+    "Grừ grừ... Miu đang vắt óc nghĩ...",
+    "Chờ Miu tí nha, Miu đang lục trí nhớ...",
+    "Meo meo, cái này Miu phải nghĩ kỹ đó...",
+    "Ưmmm... để xem nào...",
+    "Miu gãi tai một cái cho dễ nghĩ nè...",
+    "Hmm hmm, Miu sắp nghĩ ra rồi...",
+    "Ồ, thú vị ghê, đợi Miu xíu nha...",
+    "Meo, Miu đang nghĩ, bạn đừng đi đâu nha...",
 ]
 
 # Added to the system prompt for one turn when the child mentions something sensitive but ordinary.

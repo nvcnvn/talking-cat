@@ -35,11 +35,22 @@ test("silence from the start gives up after noSpeechMs", () => {
   expect(run(quiet(60))).toEqual({ verdict: "no-speech", atMs: 5000 });
 });
 
-test("a noisy room only ends the turn when its threshold is raised", () => {
-  const noise = Array(40).fill(0.15);
-  expect(run([...speech(5), ...noise]).verdict).toBe("listening");
-  const feed = createEndpointer({ ...opts, threshold: 0.25 }, 0);
-  let last = "listening";
-  [...speech(5), ...noise].forEach((l, i) => (last = feed(l, (i + 1) * 100)));
-  expect(last).toBe("done");
+test("room noise after speech is not mistaken for more speech", () => {
+  // Steady 0.15 noise sits above the fixed threshold, but not above the learned floor.
+  expect(run([...speech(5), ...Array(40).fill(0.15)])).toEqual({ verdict: "done", atMs: 1500 });
+});
+
+test("steady background noise alone never becomes a turn", () => {
+  // The whole point: a fan or a TV must not upload 15s of nothing to the backend.
+  expect(run(Array(80).fill(0.2)).verdict).toBe("no-speech");
+});
+
+test("a child who keeps talking is not cut off at the old 15s limit", () => {
+  expect(run(speech(250)).verdict).toBe("listening"); // 25s, still going
+  expect(run(speech(500))).toEqual({ verdict: "done", atMs: 45000 }); // hard ceiling only
+});
+
+test("the floor recovers if the child is already talking when the mic opens", () => {
+  // Seeded high by their own voice, it drops on the first gap between syllables.
+  expect(run([...speech(6), ...quiet(2), ...speech(6), ...quiet(20)]).verdict).toBe("done");
 });

@@ -32,7 +32,10 @@ class Settings(BaseSettings):
     # --- Text to speech ---
     tts_provider: Literal["edge", "piper", "apple", "fake"] = "edge"  # apple = macOS `say`, on-device
     tts_fallback: Literal["piper", "apple", "fake", "none"] = "piper"  # used when the primary errors or misses the deadline
-    tts_deadline_s: float = 2.5
+    # Only governs genuine stalls. Measured against edge-tts: novel text legitimately takes
+    # 1.5-5.6 s, so 2.5 s cut off renders that would have succeeded; its "no audio" failures
+    # are hard errors that return in ~2.5 s and are not affected by this value at all.
+    tts_deadline_s: float = 6.0
     tts_voice: str = "vi-VN-HoaiMyNeural"
     tts_rate: str = "-5%"
     piper_voice: str = "vi_VN-vais1000-medium"

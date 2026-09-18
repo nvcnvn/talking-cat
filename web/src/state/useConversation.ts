@@ -187,7 +187,8 @@ export function useConversation(deps: ConversationDeps): ConversationController 
     if (!canListen(stateRef.current)) return;
     deps.player.unlock();
     const src = deps.makeSource();
-    const endpointer = createEndpointer({ ...DEFAULT_ENDPOINTER, ...deps.endpointer }, Date.now());
+    const vad = { ...DEFAULT_ENDPOINTER, ...deps.endpointer };
+    const endpointer = createEndpointer(vad, Date.now());
     src.onLevel?.((l) => {
       setLevel(l);
       const verdict = endpointer(l, Date.now());
@@ -203,7 +204,9 @@ export function useConversation(deps: ConversationDeps): ConversationController 
     source.current = src;
     armed.current = deps.autoListen !== false;
     dispatch({ type: "LISTEN_START" });
-    timer.current = window.setTimeout(() => void stopListening(), deps.maxListenMs ?? 15_000);
+    // The endpointer owns the real ceiling (it knows whether the child is still talking);
+    // this timer only covers a source that never reports a level at all.
+    timer.current = window.setTimeout(() => void stopListening(), deps.maxListenMs ?? vad.maxMs + 3000);
   }, [deps, stopListening]);
 
   const submitClip = useCallback(

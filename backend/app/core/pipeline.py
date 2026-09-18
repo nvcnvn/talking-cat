@@ -255,7 +255,12 @@ class ConversationService:
             while True:
                 if pending:
                     text, task = pending.popleft()
-                    clip = await task if task else None
+                    clip = None
+                    if task:
+                        try:
+                            clip = await task
+                        except Exception:  # noqa: BLE001 - same as talk(): the sentence is still on screen
+                            log.exception("tts failure session=%s", session_id)
                     timings.setdefault("first_audio", int((time.perf_counter() - t0) * 1000))
                     yield TurnEvent("chunk", text=text, audio=clip)
                     continue

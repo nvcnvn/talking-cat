@@ -5,6 +5,7 @@ Handlers are thin: parse, call the service, serialise. Nothing else lives here.
 from __future__ import annotations
 
 import base64
+import hashlib
 import json
 import uuid
 from collections.abc import AsyncIterator
@@ -58,9 +59,19 @@ async def stt(request: Request, audio: UploadFile = File(...)) -> TranscriptOut:
 
 @router.get("/thinking/{index}")
 async def thinking(request: Request, index: int) -> Response:
-    """Filler audio for the wait before the first sentence, in the same voice as the reply."""
+    """Filler audio for the wait before the first sentence, in the same voice as the reply.
+
+    Revalidated rather than cached outright: the URL is fixed but the voice behind it is not
+    (TTS_PROVIDER), and an hour-old clip in the previous cat's voice is exactly the mismatch
+    these clips exist to avoid. The ETag is the audio itself, so a voice change invalidates
+    every filler at once and an unchanged one costs a 304, not a download.
+    """
     clip = await _svc(request).thinking_clip(index)
-    return Response(content=clip.data, media_type=clip.mime, headers={"Cache-Control": "public, max-age=3600"})
+    etag = f'"{hashlib.sha256(clip.data).hexdigest()[:16]}"'
+    headers = {"Cache-Control": "no-cache", "ETag": etag}
+    if request.headers.get("if-none-match") == etag:
+        return Response(status_code=304, headers=headers)
+    return Response(content=clip.data, media_type=clip.mime, headers=headers)
 
 
 @router.post("/chat", response_model=ChatOut)

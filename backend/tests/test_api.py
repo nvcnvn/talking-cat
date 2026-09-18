@@ -89,3 +89,20 @@ async def test_thinking_filler_is_served_in_the_cat_voice_and_cached(client, ser
     again = await client.get("/api/thinking/0")
     assert again.content == first.content
     assert len(fakes["tts"].calls) == calls, "the filler must not be re-synthesised on every turn"
+
+
+async def test_thinking_revalidates_so_a_voice_change_is_never_replayed_from_cache(client):
+    """The URL is fixed but the voice behind it is not: the browser must ask, not assume."""
+    first = await client.get("/api/thinking/0")
+    assert first.status_code == 200
+    assert first.headers["cache-control"] == "no-cache"
+    etag = first.headers["etag"]
+
+    # Unchanged voice: cheap 304, the browser reuses what it has.
+    again = await client.get("/api/thinking/0", headers={"If-None-Match": etag})
+    assert again.status_code == 304
+
+    # A stale ETag (what a previous TTS engine left behind) must return fresh audio.
+    stale = await client.get("/api/thinking/0", headers={"If-None-Match": '"0000000000000000"'})
+    assert stale.status_code == 200
+    assert stale.content == first.content
