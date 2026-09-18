@@ -1,0 +1,11 @@
+# Overlay: run the whole stack with fake providers (no models, no API key).
+#   docker compose -f docker-compose.yml -f docker-compose.test.yml up --build
+services:
+  backend:
+    environment:
+      STT_PROVIDER: fake
+      LLM_PROVIDER: fake
+      TTS_PROVIDER: fake
+      SAFETY_LLM_CHECK: "false"
+    ports:
+      - "8000:8000"

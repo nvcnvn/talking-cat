@@ -1,0 +1,99 @@
+:root {
+  --bg: #fff6e5;
+  --bg2: #ffe8b5;
+  --ink: #2b2d42;
+  --accent: #ff8fab;
+  --accent-2: #6ec6ff;
+  --card: #ffffff;
+  --shadow: 0 10px 30px rgba(43, 45, 66, 0.12);
+  font-family: "Baloo 2", system-ui, sans-serif;
+  color: var(--ink);
+}
+* { box-sizing: border-box; }
+html, body, #root { height: 100%; margin: 0; }
+body {
+  background: radial-gradient(circle at 20% 10%, #fff 0, var(--bg) 40%, var(--bg2) 100%);
+  overflow: hidden;
+}
+button { font: inherit; cursor: pointer; }
+button:disabled { cursor: default; opacity: .7; }
+
+.app {
+  height: 100%; display: grid; grid-template-rows: auto 1fr auto;
+  max-width: 560px; margin: 0 auto; padding: 12px 16px calc(16px + env(safe-area-inset-bottom));
+}
+.top { display: flex; justify-content: space-between; align-items: center; }
+.brand { font-weight: 800; font-size: 1.4rem; color: #e76f51; }
+.top__actions { display: flex; gap: 8px; }
+.icon { border: 0; background: var(--card); box-shadow: var(--shadow); border-radius: 50%; width: 44px; height: 44px; font-size: 1.2rem; }
+
+.stage { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; min-height: 0; }
+.cat { width: min(70vw, 300px); aspect-ratio: 1; animation: breathe 3s ease-in-out infinite; transform-origin: 50% 90%; }
+.cat__eyes { animation: blink 4.5s infinite; transform-origin: 120px 90px; }
+.cat__tail { animation: wag 2.2s ease-in-out infinite; transform-origin: 45px 140px; }
+.cat__ear--l { transform-origin: 75px 55px; }
+.cat__ear--r { transform-origin: 165px 55px; }
+.cat--listening .cat__ear--l { animation: perk-l .6s ease-in-out infinite alternate; }
+.cat--listening .cat__ear--r { animation: perk-r .6s ease-in-out infinite alternate; }
+.cat--listening .cat__ring { animation: pulse 1.2s ease-in-out infinite; transform-origin: 120px 110px; }
+.cat--thinking .cat__head { animation: tilt 1.6s ease-in-out infinite alternate; transform-origin: 120px 120px; }
+.cat--thinking .cat__dots circle { animation: bob 1s ease-in-out infinite; }
+.cat--thinking .cat__dots circle:nth-child(2) { animation-delay: .15s; }
+.cat--thinking .cat__dots circle:nth-child(3) { animation-delay: .3s; }
+.cat--speaking { animation: bounce .5s ease-in-out infinite alternate; }
+.cat--speaking .cat__whiskers { animation: wiggle .3s ease-in-out infinite alternate; transform-origin: 120px 118px; }
+.cat--error .cat__head { animation: shake .4s ease-in-out 2; transform-origin: 120px 120px; }
+
+@keyframes breathe { 0%,100% { transform: scaleY(1); } 50% { transform: scaleY(1.02); } }
+@keyframes blink { 0%, 92%, 100% { transform: scaleY(1); } 95% { transform: scaleY(.1); } }
+@keyframes wag { 0%,100% { transform: rotate(-8deg); } 50% { transform: rotate(10deg); } }
+@keyframes perk-l { from { transform: rotate(0); } to { transform: rotate(-10deg) translateY(-3px); } }
+@keyframes perk-r { from { transform: rotate(0); } to { transform: rotate(10deg) translateY(-3px); } }
+@keyframes pulse { 0% { opacity: .9; transform: scale(.96); } 100% { opacity: 0; transform: scale(1.12); } }
+@keyframes tilt { from { transform: rotate(-4deg); } to { transform: rotate(4deg); } }
+@keyframes bob { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
+@keyframes bounce { from { transform: translateY(0); } to { transform: translateY(-6px); } }
+@keyframes wiggle { from { transform: rotate(-2deg); } to { transform: rotate(2deg); } }
+@keyframes shake { 0%,100% { transform: translateX(0); } 25% { transform: translateX(-6px); } 75% { transform: translateX(6px); } }
+
+.bubbles { width: 100%; display: flex; flex-direction: column; gap: 8px; }
+.bubble { margin: 0; padding: 12px 16px; border-radius: 18px; box-shadow: var(--shadow); font-size: 1.1rem; line-height: 1.4; max-width: 92%; }
+.bubble--cat { background: var(--card); border-bottom-left-radius: 4px; align-self: flex-start; }
+.bubble--kid { background: var(--accent-2); color: #fff; border-bottom-right-radius: 4px; align-self: flex-end; font-size: .95rem; }
+.bubble--gentle { background: #fff3cd; }
+.bubble--hint { opacity: .85; }
+
+.controls { display: flex; flex-direction: column; gap: 12px; align-items: center; padding-top: 12px; }
+.talk {
+  border: 0; border-radius: 999px; padding: 18px 28px; min-width: 240px; color: #fff;
+  background: linear-gradient(135deg, #ff8fab, #ff6b81); box-shadow: 0 12px 24px rgba(255, 107, 129, .35);
+  display: flex; align-items: center; justify-content: center; gap: 12px; font-size: 1.15rem; font-weight: 700;
+  transition: transform .1s;
+}
+.talk:active { transform: scale(.96); }
+.talk__icon { font-size: 1.6rem; }
+.talk--listening { background: linear-gradient(135deg, #6ec6ff, #4aa3f0); box-shadow: 0 12px 24px rgba(74, 163, 240, .35); animation: glow 1s infinite alternate; }
+.talk--speaking { background: linear-gradient(135deg, #ffd166, #f4a261); }
+.talk--thinking { background: #cfd8dc; box-shadow: none; }
+@keyframes glow { from { box-shadow: 0 0 0 0 rgba(74,163,240,.5); } to { box-shadow: 0 0 0 16px rgba(74,163,240,0); } }
+
+.typebar { display: flex; gap: 8px; width: 100%; }
+.typebar input, .modal input, .modal select, .testpanel input[type=text], .testpanel input:not([type]) {
+  flex: 1; font: inherit; padding: 12px 14px; border-radius: 14px; border: 2px solid #ffd9a0; background: #fff; min-width: 0;
+}
+.primary { background: #e76f51; color: #fff; border: 0; border-radius: 14px; padding: 12px 18px; font-weight: 700; }
+
+.modal { position: fixed; inset: 0; background: rgba(43,45,66,.45); display: grid; place-items: center; padding: 16px; }
+.modal__card { background: var(--card); border-radius: 22px; padding: 20px; width: min(420px, 100%); box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 12px; }
+.modal__card h2 { margin: 0; }
+.modal__row { display: flex; justify-content: flex-end; gap: 8px; }
+.modal__row button { border: 0; border-radius: 14px; padding: 10px 16px; background: #eee; }
+.field { display: flex; flex-direction: column; gap: 6px; font-weight: 700; }
+.muted { opacity: .7; margin: 0; }
+
+.testpanel { width: 100%; background: #fff; border: 2px dashed #f4a261; border-radius: 16px; padding: 12px; display: flex; flex-direction: column; gap: 8px; font-size: .9rem; }
+.testpanel h3 { margin: 0; }
+.testpanel form { display: flex; gap: 6px; }
+.testpanel button { border: 0; border-radius: 10px; padding: 8px 12px; background: #ffe8b5; }
+
+@media (max-height: 640px) { .cat { width: min(50vw, 200px); } }

@@ -141,3 +141,14 @@ dist
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
+
+# project
+.env
+backend/.venv/
+backend/**/__pycache__/
+backend/.pytest_cache/
+web/dist/
+web/test-results/
+web/playwright-report/
+reply.mp3
+reply.wav
