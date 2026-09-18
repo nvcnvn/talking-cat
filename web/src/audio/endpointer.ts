@@ -36,6 +36,14 @@ const FLOOR_SEED_MS = 300;
 const FLOOR_RISE_MS = 3000;
 /** And it can never climb far enough to gate out a normal speaking voice. */
 const FLOOR_MAX = 0.15;
+/** Ceiling on the *learned* part of the gate. FLOOR_MAX alone was not enough: multiplied by
+ * `noiseRatio` a floor of .15 gates at .375, above a normal child's voice. That bit whenever
+ * the mic opened while the child was already talking — no quiet frames to learn the room from,
+ * so their own voice became "the room" and the whole turn ended in "no-speech". An explicit
+ * `threshold` still wins, so a deliberately noisy-room setting is untouched.
+ * ponytail: .25 sits between steady room noise (~.2) and a child's voice (~.3); if a real
+ * device reads hotter or quieter, tune it here or raise ?vadThreshold. */
+const LEARNED_GATE_MAX = 0.25;
 
 export type Endpoint = "listening" | "done" | "no-speech";
 
@@ -57,7 +65,7 @@ export function createEndpointer(o: EndpointerOptions, startedAt: number) {
           ? level
           : floor + (level - floor) * Math.min(1, dt / FLOOR_RISE_MS),
     );
-    if (level >= Math.max(o.threshold, floor * o.noiseRatio)) {
+    if (level >= Math.max(o.threshold, Math.min(LEARNED_GATE_MAX, floor * o.noiseRatio))) {
       voicedMs += dt;
       lastLoudAt = now;
     }

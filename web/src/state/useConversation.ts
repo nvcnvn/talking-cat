@@ -28,6 +28,8 @@ export interface ConversationController {
   ageGroup: AgeGroup;
   setAgeGroup(a: AgeGroup): void;
   startListening(): Promise<void>;
+  /** Cut the cat off and start listening in one tap. */
+  bargeIn(): Promise<void>;
   stopListening(opts?: { noSpeech?: boolean }): Promise<void>;
   /** Run a full turn from a prerecorded clip (or "#transcript:" text file). */
   submitClip(clip: Blob): Promise<void>;
@@ -42,8 +44,10 @@ const MAX_FILLERS = 3;
 /** Hands-free: how many turns with nothing said before the cat stops re-opening the mic.
  * Without this the app would listen forever after the child walks away. */
 const MAX_IDLE_TURNS = 2;
-/** Let the speaker settle before the mic opens again, so the cat does not hear its own tail. */
-const RELISTEN_DELAY_MS = 400;
+/** Let the speaker settle before the mic opens again, so the cat does not hear its own tail.
+ * Short on purpose: the mic stream is already warm, and every ms here is a ms in which the
+ * child talks to a mic that is not recording. Echo cancellation covers the tail. */
+const RELISTEN_DELAY_MS = 120;
 
 const FRIENDLY_ERROR = "Meo, Miu không nghe được. Bạn thử lại nhé!";
 
@@ -56,7 +60,7 @@ export function useConversation(deps: ConversationDeps): ConversationController 
   const relisten = useRef(0);
   const armed = useRef(false); // hands-free loop is running
   const idleTurns = useRef(0); // consecutive turns where the child said nothing
-  const startRef = useRef<() => Promise<void>>();
+  const startRef = useRef<(force?: boolean) => Promise<void>>();
   const stateRef = useRef(state);
   stateRef.current = state;
 
@@ -183,8 +187,8 @@ export function useConversation(deps: ConversationDeps): ConversationController 
     }
   }, [runTurn, speak, maybeRelisten]);
 
-  const startListening = useCallback(async () => {
-    if (!canListen(stateRef.current)) return;
+  const startListening = useCallback(async (force = false) => {
+    if (!force && !canListen(stateRef.current)) return;
     deps.player.unlock();
     const src = deps.makeSource();
     const vad = { ...DEFAULT_ENDPOINTER, ...deps.endpointer };
@@ -265,6 +269,13 @@ export function useConversation(deps: ConversationDeps): ConversationController 
     dispatch({ type: "INTERRUPT" });
   }, [deps.player]);
 
+  /** The child taps while the cat is talking because they want to say something, not because
+   * they want silence: stop the cat and open the mic in the same tap. */
+  const bargeIn = useCallback(async () => {
+    interrupt();
+    await startListening(true);
+  }, [interrupt, startListening]);
+
   const reset = useCallback(async () => {
     interrupt();
     await deps.api.clearSession(stateRef.current.sessionId).catch(() => {});
@@ -273,5 +284,5 @@ export function useConversation(deps: ConversationDeps): ConversationController 
 
   startRef.current = startListening;
 
-  return { state, level, ageGroup, setAgeGroup, startListening, stopListening, submitClip, submitText, interrupt, reset };
+  return { state, level, ageGroup, setAgeGroup, startListening, bargeIn, stopListening, submitClip, submitText, interrupt, reset };
 }

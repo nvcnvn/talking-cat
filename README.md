@@ -196,14 +196,21 @@ the first 300 ms (the mic has just opened; the child is still drawing breath), t
 instantly and upward over ~3 s, and counts a level as speech only above `max(threshold, floor × noiseRatio)`.
 Without this a fan or a TV sat permanently above the fixed threshold, so the quiet never arrived, the
 hard cap fired, and 15 s of room noise went to Whisper — which duly invented a sentence out of it.
-The floor is capped internally so it can never climb high enough to gate out a real speaking voice.
+The learned part of the gate is capped internally so it can never climb high enough to gate out a real
+speaking voice — without that cap, a child who was already mid-sentence when the mic opened seeded the
+floor from their own voice and had their whole turn filed as room noise.
 
 Tune per room without rebuilding: `?vadThreshold=0.2&vadSilence=1800&vadNoise=3&vadMax=60000`
 (level is 0..1, clamped at 1).
 
 After the cat finishes, the mic reopens by itself, so a three-year-old taps once per conversation
 rather than once per turn. Two turns in a row with nothing said end the loop (the child has walked
-away), as does tapping the cat while it speaks. `?hands=off` restores tap-per-turn.
+away). `?hands=off` restores tap-per-turn. The microphone stream is held open between turns and
+released ten seconds after the last one: reacquiring the device cost 150-600 ms every turn, which the
+child spent talking to a mic that was not recording yet.
+
+**Cutting the cat off.** Tapping the cat while it speaks stops it *and* opens the mic in the same
+tap, rather than dropping to idle and needing a second tap.
 
 Several children talking at once is handled at the prompt, not by a threshold. Measured on mixed clips
 with `mlx-community/whisper-large-v3-turbo`:

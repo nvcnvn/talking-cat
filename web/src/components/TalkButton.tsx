@@ -12,7 +12,7 @@ const LABEL: Record<Phase, string> = {
   error: "Thử lại",
   listening: "Miu đang nghe... nói xong là Miu trả lời",
   thinking: "Miu đang nghĩ...",
-  speaking: "Miu đang nói",
+  speaking: "Miu đang nói - chạm để nói xen vào",
 };
 
 export function TalkButton({ phase, onStart, onStop, onInterrupt }: Props) {
@@ -27,7 +27,7 @@ export function TalkButton({ phase, onStart, onStop, onInterrupt }: Props) {
       aria-label={LABEL[phase]}
     >
       <span className="talk__icon" aria-hidden="true">
-        {phase === "listening" ? "⏹" : phase === "speaking" ? "🔊" : phase === "thinking" ? "…" : "🎤"}
+        {phase === "listening" ? "⏹" : phase === "speaking" ? "🎤" : phase === "thinking" ? "…" : "🎤"}
       </span>
       <span className="talk__label">{LABEL[phase]}</span>
     </button>

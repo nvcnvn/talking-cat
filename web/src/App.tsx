@@ -33,7 +33,7 @@ export function App({ runtime }: { runtime: Runtime }) {
 
       <footer className="controls">
         {config.input === "mic" && (
-          <TalkButton phase={state.phase} onStart={() => void convo.startListening()} onStop={() => void convo.stopListening()} onInterrupt={convo.interrupt} />
+          <TalkButton phase={state.phase} onStart={() => void convo.startListening()} onStop={() => void convo.stopListening()} onInterrupt={() => void convo.bargeIn()} />
         )}
         {typing && (
           <form

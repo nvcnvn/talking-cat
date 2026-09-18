@@ -17,7 +17,7 @@ export interface RuntimeConfig {
   handsFree: boolean;
 }
 
-function num(raw: string | null, key: keyof EndpointerOptions, into: Partial<EndpointerOptions>): Partial<EndpointerOptions> {
+function num<T>(raw: string | null, key: keyof T, into: Partial<T>): Partial<T> {
   const v = raw === null ? NaN : Number(raw);
   return Number.isFinite(v) ? { ...into, [key]: v } : into;
 }
@@ -31,10 +31,14 @@ export function readConfig(search: string = window.location.search): RuntimeConf
     playAudio: q.get("audio") !== "off",
     apiBase: q.get("apiBase") || "",
     testMode,
-    endpointer: num(
+    endpointer: num<EndpointerOptions>(
       q.get("vadThreshold"),
       "threshold",
-      num(q.get("vadSilence"), "silenceMs", num(q.get("vadNoise"), "noiseRatio", num(q.get("vadMax"), "maxMs", {}))),
+      num<EndpointerOptions>(
+        q.get("vadSilence"),
+        "silenceMs",
+        num<EndpointerOptions>(q.get("vadNoise"), "noiseRatio", num<EndpointerOptions>(q.get("vadMax"), "maxMs", {})),
+      ),
     ),
     handsFree: q.get("hands") !== "off",
   };

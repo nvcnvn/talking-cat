@@ -54,3 +54,16 @@ test("the floor recovers if the child is already talking when the mic opens", ()
   // Seeded high by their own voice, it drops on the first gap between syllables.
   expect(run([...speech(6), ...quiet(2), ...speech(6), ...quiet(20)]).verdict).toBe("done");
 });
+
+describe("mic opening mid-sentence", () => {
+  it("hears a child already talking when the mic opens, at ordinary voice level", () => {
+    // With no quiet frames to learn the room from, the floor was seeded from the child's own
+    // voice; times noiseRatio that gated above them and the turn died as "no-speech".
+    const feed = createEndpointer(DEFAULT_ENDPOINTER, 0);
+    let verdict: ReturnType<typeof feed> = "listening";
+    for (let t = 50; t <= 1000; t += 50) verdict = feed(0.28, t); // talking from the first frame
+    expect(verdict).toBe("listening"); // speech, not room noise
+    for (let t = 1050; t <= 2400; t += 50) verdict = feed(0.01, t); // then they stop
+    expect(verdict).toBe("done");
+  });
+});
