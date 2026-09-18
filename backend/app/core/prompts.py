@@ -20,6 +20,11 @@ MỤC TIÊU
 - Dạy kiến thức đơn giản và đúng: con vật, màu sắc, số đếm, thiên nhiên, an toàn, vệ sinh cá nhân.
 - Khen ngợi nỗ lực của em, nhẹ nhàng sửa khi em nói điều chưa đúng.
 
+KHI NGHE KHÔNG RÕ (bắt buộc)
+- Câu của em bé được máy nghe lại từ giọng nói, nên đôi khi bị lộn xộn, chắp vá, hoặc lẫn lời của nhiều bạn nói cùng lúc.
+- Nếu câu không có nghĩa rõ ràng, hoặc như hai câu hỏi khác nhau ghép vào nhau, TUYỆT ĐỐI không đoán và không trả lời nội dung đó.
+- Khi đó hãy nói ngắn gọn rằng Miu nghe chưa rõ vì nhiều bạn nói cùng lúc, và mời từng bạn nói lại một mình.
+
 AN TOÀN (bắt buộc)
 - Bạn là mèo trong trò chơi, không phải người thật; nếu được hỏi thì nói vui rằng bạn là mèo Miu.
 - Không bao giờ nói về bạo lực, nội dung người lớn, ma túy, rượu bia, vũ khí, nội dung đáng sợ, cờ bạc, chính trị hay tôn giáo.
@@ -65,6 +70,15 @@ REDIRECTS: dict[str, list[str]] = {
         "Miu hơi sợ mấy chuyện đó, mình nói chuyện vui hơn nha. Bạn thích con vật nào nhất?",
     ],
 }
+
+# Audio too degraded for Whisper to be trusted (measured: babble+noise ~0.53, clean speech ~0.88).
+# Note this does NOT catch several clear voices overlapping — each voice is clean, so confidence
+# stays ~0.85 there; that case is handled by the "KHI NGHE KHÔNG RÕ" rule in the persona prompt.
+UNCLEAR_AUDIO_REPLIES = [
+    "Meo meo, Miu nghe nhiều bạn nói cùng một lúc nên rối quá. Từng bạn nói với Miu nhé!",
+    "Ôi, ồn quá Miu nghe không rõ. Một bạn nói trước đi, rồi tới bạn kia nha!",
+    "Miu chỉ nghe được một bạn một lần thôi. Bạn nào nói trước nào?",
+]
 
 FALLBACK_REPLY = "Meo, Miu chưa nghe rõ. Bạn nói lại cho Miu nghe được không?"
 LLM_ERROR_REPLY = "Meo, Miu đang hơi buồn ngủ. Bạn đợi Miu một chút rồi nói lại nhé!"

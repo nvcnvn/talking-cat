@@ -10,7 +10,7 @@ interface Props {
 const LABEL: Record<Phase, string> = {
   idle: "Chạm để nói",
   error: "Thử lại",
-  listening: "Miu đang nghe... chạm để dừng",
+  listening: "Miu đang nghe... nói xong là Miu trả lời",
   thinking: "Miu đang nghĩ...",
   speaking: "Miu đang nói",
 };

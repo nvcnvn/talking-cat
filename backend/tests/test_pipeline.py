@@ -105,3 +105,31 @@ async def test_session_cap(service, fakes):
         await service.reply("cap", str(i))
     assert len(service.sessions.get_history("cap")) == 4
     assert isinstance(service.sessions.get_history("cap")[0], Message)
+
+
+async def test_unclear_audio_skips_the_llm(fakes, service):
+    """Audio Whisper itself is unsure of: answering it would be guessing."""
+    from dataclasses import replace as _replace
+
+    from app.core.models import Transcript
+    from app.core.prompts import UNCLEAR_AUDIO_REPLIES
+
+    service.cfg = _replace(service.cfg, min_confidence=0.55)
+
+    async def low_conf(audio, mime, language="vi"):
+        return Transcript(text="con voi kêu mẹ ơi cho con bánh", language="vi", confidence=0.31)
+
+    service.stt.transcribe = low_conf
+    r = await service.talk("s-cross", b"x", "audio/wav", want_audio=False)
+    assert r.reply.text in UNCLEAR_AUDIO_REPLIES and not r.reply.llm_used
+    assert fakes["llm"].requests == []
+    assert service.sessions.get_history("s-cross") == []
+
+
+async def test_confident_transcript_still_reaches_the_llm(fakes, service):
+    from dataclasses import replace as _replace
+
+    service.cfg = _replace(service.cfg, min_confidence=0.55)
+    fakes["llm"].script = ["Meo, voi kêu ò ó o!"]
+    r = await service.talk("s-ok", b"x", "audio/wav", want_audio=False)
+    assert r.reply.llm_used and r.reply.text == "Meo, voi kêu ò ó o!"

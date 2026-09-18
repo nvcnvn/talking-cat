@@ -77,5 +77,6 @@ def build_service(s: Settings) -> ConversationService:
             max_user_chars=s.max_user_chars,
             max_reply_chars=s.max_reply_chars,
             stt_language=s.whisper_language,
+            min_confidence=s.stt_min_confidence,
         ),
     )

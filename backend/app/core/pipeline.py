@@ -13,7 +13,7 @@ from dataclasses import dataclass
 
 from .interfaces import LLMProvider, SafetyFilter, SessionStore, STTProvider, TTSProvider
 from .models import AgeGroup, AudioClip, ChatReply, Message, SafetyVerdict, TalkResult, Transcript
-from .prompts import FALLBACK_REPLY, LLM_ERROR_REPLY, REDIRECTS, system_prompt
+from .prompts import FALLBACK_REPLY, LLM_ERROR_REPLY, REDIRECTS, UNCLEAR_AUDIO_REPLIES, system_prompt
 from .safety import sanitize_for_speech
 
 log = logging.getLogger(__name__)
@@ -26,6 +26,7 @@ class PipelineConfig:
     max_user_chars: int = 400
     max_reply_chars: int = 500
     stt_language: str = "vi"
+    min_confidence: float = 0.0  # transcripts below this are crosstalk/noise, not a question
 
 
 class ConversationService:
@@ -103,7 +104,11 @@ class ConversationService:
         timings["stt"] = int((time.perf_counter() - t0) * 1000)
 
         t1 = time.perf_counter()
-        reply = await self.reply(session_id, transcript.text, age_group)
+        if self._is_unclear(transcript):
+            log.info("unclear audio session=%s conf=%s text=%r", session_id, transcript.confidence, transcript.text[:80])
+            reply = ChatReply(self._rng.choice(UNCLEAR_AUDIO_REPLIES), blocked=False, llm_used=False)
+        else:
+            reply = await self.reply(session_id, transcript.text, age_group)
         timings["llm"] = int((time.perf_counter() - t1) * 1000)
 
         clip: AudioClip | None = None
@@ -115,7 +120,14 @@ class ConversationService:
                 log.exception("tts failure session=%s", session_id)
             timings["tts"] = int((time.perf_counter() - t2) * 1000)
         timings["total"] = int((time.perf_counter() - t0) * 1000)
+        log.info("turn session=%s timings_ms=%s chars=%d", session_id, timings, len(reply.text))
         return TalkResult(transcript=transcript, reply=reply, audio=clip, session_id=session_id, timings_ms=timings)
+
+    def _is_unclear(self, t: Transcript) -> bool:
+        """Noise gate, not a crosstalk detector: it only catches audio Whisper itself is unsure of
+        (measured ~0.53 on babble, ~0.88 on one clear voice). Clear voices overlapping stay ~0.85
+        and are caught by the persona prompt instead."""
+        return bool(t.text.strip()) and t.confidence is not None and t.confidence < self.cfg.min_confidence
 
     def _redirect(self, category: str) -> str:
         options = REDIRECTS.get(category) or REDIRECTS["default"]

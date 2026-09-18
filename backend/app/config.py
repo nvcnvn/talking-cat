@@ -26,6 +26,7 @@ class Settings(BaseSettings):
     whisper_compute_type: str = "int8"
     whisper_language: str = "vi"
     whisper_initial_prompt: str = "Xin chào Miu. Miu ơi, mèo Miu ơi."  # vocabulary hint for the cat's name
+    stt_min_confidence: float = 0.55  # below this the transcript is treated as crosstalk/noise; 0 disables
     mlx_whisper_model: str = "mlx-community/whisper-small-mlx"  # or mlx-community/whisper-large-v3-turbo
 
     # --- Text to speech ---

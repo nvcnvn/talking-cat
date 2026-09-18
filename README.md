@@ -91,7 +91,8 @@ make up-fake && make e2e   # Playwright: file-driven turns through the real HTTP
 * **Browser:** open `http://localhost:8080/?test=1` — a test panel replaces the mic. Upload a `.wav`/`.webm`/`.mp3`, or a `.txt` whose first line is `#transcript: <words>` (fake STT only). Add `&audio=off` to skip playback, `&api=mock` to run with no backend at all.
 * **CLI:** `make talk FILE=path/to/clip.wav` posts the file to `/api/talk` and saves the cat's reply audio.
   `backend/scripts/stt_file.py clip.mp3 ...` runs only the STT provider selected by `STT_PROVIDER` on local files, to compare Whisper engines/models across the two environments on identical clips.
-* **Playwright:** `web/tests/e2e/talk.spec.ts` uses `setInputFiles` on the same panel. The config also launches Chromium with a fake media device, so the real `MicrophoneSource` can be fed a WAV via `--use-file-for-fake-audio-capture=<file.wav>` when you want to test the mic path itself.
+* **Playwright:** `web/tests/e2e/talk.spec.ts` uses `setInputFiles` on the same panel. The config also launches Chromium with a fake media device, so the real `MicrophoneSource` can be fed a WAV via `--use-file-for-fake-audio-capture=<file.wav>` when you want to test the mic path itself. `mic-autosubmit.spec.ts` does exactly that for the
+  silence detector: speech-then-silence must submit with one tap, and pure silence must never reach the backend.
 
 ## Latency notes (measured)
 
@@ -103,6 +104,30 @@ make up-fake && make e2e   # Playwright: file-driven turns through the real HTTP
 | Piper (`vi_VN-vais1000-medium`) | 0.2–0.7 s | self-hosted fallback when edge-tts misses `TTS_DEADLINE_S` (default 2.5 s); plainer voice |
 
 Set `TTS_PROVIDER=piper` to go fully self-hosted, or `TTS_FALLBACK=none` to insist on the Edge voice.
+
+## Taking turns (no second tap)
+
+The child taps once. `web/src/audio/endpointer.ts` watches the mic level and ends the turn by itself
+after `silenceMs` of quiet (default 1.2 s), once at least `minSpeechMs` of speech has been heard;
+if nothing is ever said it gives up after `noSpeechMs` and the cat answers without any backend call.
+The 15 s hard cap stays as the backstop. Tune per room without rebuilding:
+`?vadThreshold=0.2&vadSilence=1800` (level is 0..1, clamped at 1).
+
+Several children talking at once is handled at the prompt, not by a threshold. Measured on mixed clips
+with `mlx-community/whisper-large-v3-turbo`:
+
+| clip | transcript | Whisper confidence |
+|---|---|---|
+| one voice | correct | 0.88 |
+| two voices overlapping | mash-up of both questions | 0.85 |
+| three voices | mash-up | 0.78 |
+| babble + noise | nonsense | 0.53 |
+
+Overlapping voices are each clean, so confidence does *not* separate them, and GLM will happily answer
+the mash-up. The persona prompt therefore has a "KHI NGHE KHÔNG RÕ" rule: if the sentence has no clear
+meaning or looks like two questions spliced together, the cat says it heard several friends at once and
+asks them to speak one at a time. `STT_MIN_CONFIDENCE` (default 0.55) is only a noise gate for audio
+Whisper itself is unsure of; it skips the LLM round-trip on genuinely degraded clips.
 
 ## Safety
 

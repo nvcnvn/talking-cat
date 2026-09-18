@@ -3,6 +3,7 @@ import type { AgeGroup, ApiClient } from "../api/client";
 import { base64ToBlob } from "../api/client";
 import type { AudioPlayer } from "../audio/AudioPlayer";
 import type { AudioSource, AudioSourceFactory } from "../audio/AudioSource";
+import { createEndpointer, DEFAULT_ENDPOINTER, type EndpointerOptions } from "../audio/endpointer";
 import { FileSource } from "../audio/FileSource";
 import { canListen, initialState, newSessionId, reduce, type ConversationState } from "./conversation";
 
@@ -12,6 +13,8 @@ export interface ConversationDeps {
   player: AudioPlayer;
   playAudio: boolean;
   maxListenMs?: number;
+  /** Silence detection knobs; the turn ends by itself so the child never has to tap twice. */
+  endpointer?: Partial<EndpointerOptions>;
 }
 
 export interface ConversationController {
@@ -20,7 +23,7 @@ export interface ConversationController {
   ageGroup: AgeGroup;
   setAgeGroup(a: AgeGroup): void;
   startListening(): Promise<void>;
-  stopListening(): Promise<void>;
+  stopListening(opts?: { noSpeech?: boolean }): Promise<void>;
   /** Run a full turn from a prerecorded clip (or "#transcript:" text file). */
   submitClip(clip: Blob): Promise<void>;
   submitText(text: string): Promise<void>;
@@ -74,7 +77,7 @@ export function useConversation(deps: ConversationDeps): ConversationController 
     [deps.api, deps.playAudio, ageGroup, speak],
   );
 
-  const stopListening = useCallback(async () => {
+  const stopListening = useCallback(async (opts?: { noSpeech?: boolean }) => {
     clearTimeout(timer.current);
     const src = source.current;
     source.current = null;
@@ -83,8 +86,8 @@ export function useConversation(deps: ConversationDeps): ConversationController 
     setLevel(0);
     try {
       const clip = await src.stop();
-      if (clip.size < 500) {
-        // too short to be speech (mic path only)
+      if (opts?.noSpeech || clip.size < 500) {
+        // nothing was said, or too short to be speech (mic path only): no backend round-trip
         const msg = "Meo, Miu chưa nghe rõ. Bạn nói lại cho Miu nghe được không?";
         dispatch({ type: "RESULT", heard: "", reply: msg, blocked: false });
         await speak(null, msg);
@@ -101,7 +104,12 @@ export function useConversation(deps: ConversationDeps): ConversationController 
     if (!canListen(stateRef.current)) return;
     deps.player.unlock();
     const src = deps.makeSource();
-    src.onLevel?.(setLevel);
+    const endpointer = createEndpointer({ ...DEFAULT_ENDPOINTER, ...deps.endpointer }, Date.now());
+    src.onLevel?.((l) => {
+      setLevel(l);
+      const verdict = endpointer(l, Date.now());
+      if (verdict !== "listening") void stopListening({ noSpeech: verdict === "no-speech" });
+    });
     try {
       await src.start();
     } catch (e) {
