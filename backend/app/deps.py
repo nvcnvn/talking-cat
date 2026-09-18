@@ -15,6 +15,10 @@ log = logging.getLogger(__name__)
 def build_stt(s: Settings):
     if s.stt_provider == "fake":
         return FakeSTT()
+    if s.stt_provider == "mlx_whisper":
+        from .providers.stt_mlx_whisper import MlxWhisperSTT
+
+        return MlxWhisperSTT(s.mlx_whisper_model, s.whisper_initial_prompt)
     from .providers.stt_whisper import WhisperSTT
 
     return WhisperSTT(s.whisper_model, s.whisper_device, s.whisper_compute_type, s.whisper_initial_prompt)

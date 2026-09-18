@@ -20,12 +20,13 @@ class Settings(BaseSettings):
     llm_max_tokens: int = 220
 
     # --- Speech to text ---
-    stt_provider: Literal["whisper", "fake"] = "whisper"
+    stt_provider: Literal["whisper", "mlx_whisper", "fake"] = "whisper"  # whisper = faster-whisper (CPU/CUDA); mlx_whisper = Apple Silicon
     whisper_model: str = "small"
     whisper_device: str = "cpu"
     whisper_compute_type: str = "int8"
     whisper_language: str = "vi"
     whisper_initial_prompt: str = "Xin chào Miu. Miu ơi, mèo Miu ơi."  # vocabulary hint for the cat's name
+    mlx_whisper_model: str = "mlx-community/whisper-small-mlx"  # or mlx-community/whisper-large-v3-turbo
 
     # --- Text to speech ---
     tts_provider: Literal["edge", "piper", "fake"] = "edge"

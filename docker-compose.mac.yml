@@ -1,0 +1,13 @@
+# Mac with Apple Silicon: MLX cannot run inside Docker, so the backend runs natively on the host
+# (make mac-backend) and only the web container runs here, proxying /api to the host.
+#   docker compose -f docker-compose.mac.yml up --build -d
+services:
+  web:
+    build: ./web
+    ports:
+      - "${WEB_PORT:-8080}:80"
+    environment:
+      BACKEND_UPSTREAM: host.docker.internal:8000
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped

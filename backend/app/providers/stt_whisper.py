@@ -2,11 +2,11 @@
 from __future__ import annotations
 
 import asyncio
-import io
 import logging
 import threading
 
 from ..core.models import Transcript
+from .audio_decode import decode_to_pcm16k
 
 log = logging.getLogger(__name__)
 
@@ -36,7 +36,7 @@ class WhisperSTT:
     def _transcribe_sync(self, audio: bytes, language: str) -> Transcript:
         model = self._get_model()
         segments, info = model.transcribe(
-            io.BytesIO(audio),
+            decode_to_pcm16k(audio),
             language=language,
             beam_size=1,
             vad_filter=True,

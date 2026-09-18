@@ -33,18 +33,50 @@ Endpoints: `POST /api/talk` (audio → full turn), and one per stage: `/api/stt`
 
 ## Run
 
+Two supported environments. Both use the same code; only the provider config differs.
+
+### Linux CPU (Docker, the testing environment)
+
 ```bash
 cp .env.example .env      # put your GLM key in LLM_API_KEY
 make up                   # http://localhost:8080
 ```
 
-First start downloads the Whisper model (~500 MB for `small`) into a Docker volume.
+First start downloads the Whisper model (~500 MB for `small`) into a Docker volume. Whisper runs on
+faster-whisper (CTranslate2, int8), Piper on ONNX Runtime CPU.
 
 Fake stack (no key, no models, instant):
 
 ```bash
 make up-fake
 ```
+
+### Mac with Apple Silicon (MLX)
+
+MLX needs Metal, which Docker's Linux VM cannot reach, so the backend runs natively and only the
+web container runs in Docker (it proxies `/api` to `host.docker.internal:8000`).
+
+```bash
+brew install uv          # audio decoding uses PyAV's bundled ffmpeg, no system ffmpeg needed
+cp .env.example .env      # LLM key; STT_PROVIDER is overridden to mlx_whisper by the make target
+make mac-setup            # venv with mlx-whisper instead of faster-whisper
+make mac-backend          # native backend on :8000 (first run downloads MLX_WHISPER_MODEL from Hugging Face)
+make mac-up               # web on http://localhost:8080
+```
+
+`MLX_WHISPER_MODEL=mlx-community/whisper-large-v3-turbo` is the recommended setting on an M-series
+chip: noticeably better Vietnamese than `small`, and still well under a second per clip. Piper stays on
+CPU (it is already ~0.3 s), and edge-tts is network-bound, so STT is the only stage MLX accelerates.
+
+| Stage | Linux CPU | Mac MLX |
+|---|---|---|
+| STT | `WhisperSTT` (faster-whisper) | `MlxWhisperSTT` (mlx-whisper) |
+
+The MLX provider can be smoke-tested on Linux with `uv pip install "mlx[cpu]" mlx-whisper` (same code, same
+transcripts, but ~90 s per clip because MLX's Linux CPU backend is unoptimized). The stubbed unit tests in
+`backend/tests/test_stt_mlx.py` cover it in CI without MLX installed.
+| TTS | `EdgeTTS` → `PiperTTS` | same |
+| LLM | GLM over HTTP | same |
 
 ## Test
 
@@ -58,6 +90,7 @@ make up-fake && make e2e   # Playwright: file-driven turns through the real HTTP
 
 * **Browser:** open `http://localhost:8080/?test=1` — a test panel replaces the mic. Upload a `.wav`/`.webm`/`.mp3`, or a `.txt` whose first line is `#transcript: <words>` (fake STT only). Add `&audio=off` to skip playback, `&api=mock` to run with no backend at all.
 * **CLI:** `make talk FILE=path/to/clip.wav` posts the file to `/api/talk` and saves the cat's reply audio.
+  `backend/scripts/stt_file.py clip.mp3 ...` runs only the STT provider selected by `STT_PROVIDER` on local files, to compare Whisper engines/models across the two environments on identical clips.
 * **Playwright:** `web/tests/e2e/talk.spec.ts` uses `setInputFiles` on the same panel. The config also launches Chromium with a fake media device, so the real `MicrophoneSource` can be fed a WAV via `--use-file-for-fake-audio-capture=<file.wav>` when you want to test the mic path itself.
 
 ## Latency notes (measured)
