@@ -145,6 +145,7 @@ vite.config.ts.timestamp-*
 # project
 .env
 backend/.venv/
+backend/.venv-mac/
 backend/**/__pycache__/
 backend/.pytest_cache/
 web/dist/

@@ -10,11 +10,11 @@ down:
 # ---- Mac (Apple Silicon, MLX) ----
 # Backend runs natively (needs: brew install uv ffmpeg); web runs in Docker and proxies to the host.
 mac-setup:
-	cd backend && uv venv -q .venv && uv pip install -q --python .venv/bin/python -r requirements-mac.txt
+	cd backend && uv venv -q .venv-mac && uv pip install -q --python .venv-mac/bin/python -r requirements-mac.txt
 mac-stt:       ## compare MLX whisper on local clips: make mac-stt FILES="a.mp3 b.wav"
-	cd backend && STT_PROVIDER=mlx_whisper .venv/bin/python scripts/stt_file.py $(FILES)
+	cd backend && STT_PROVIDER=mlx_whisper .venv-mac/bin/python scripts/stt_file.py $(FILES)
 mac-backend:   ## run the backend natively with MLX whisper (reads ../.env)
-	cd backend && STT_PROVIDER=mlx_whisper PIPER_DATA_DIR=$(HOME)/.cache/piper .venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000
+	cd backend && STT_PROVIDER=mlx_whisper PIPER_DATA_DIR=$(HOME)/.cache/piper .venv-mac/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000
 mac-up:        ## web container only
 	docker compose -f docker-compose.mac.yml up --build -d
 mac-down:
